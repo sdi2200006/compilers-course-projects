@@ -1,0 +1,99 @@
+/* Simple +/-/* expression language; parser evaluates constant expressions on the fly*/
+/**
+ *  Package and Import Specifications
+ */
+import java_cup.runtime.*;
+
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+/**
+ *  Symbol Lists
+ */
+
+/* Terminals (tokens returned by the scanner). */
+terminal   RBRACKET, LBRACKET, LPAREN, RPAREN,KOMMA, EQUALITH, PLUS, EXTRA, EXTRA2, NO, NO1;
+terminal  IF, ELSE, SUFFIX, PREFIX, REVERSE;        // our scanner provides numbers as integers
+terminal String STRING, CHAR, ID;
+
+
+/*  Non terminals */
+non terminal begin , funct_bds,funct_defs, expr_type,expr;   
+non terminal expr2;
+non terminal funct_call, funct_def, funct_bd;
+non terminal parametr1, arg1; // used to store evaluated subexpressions
+non terminal IF_def;
+
+/**
+ *  Precedence Declarations
+ */
+precedence left  IF, ELSE;
+precedence left EQUALITH, PLUS, KOMMA;
+precedence left SUFFIX, PREFIX;
+
+start with begin;
+
+/**
+ *  The Grammar Rules
+*/
+
+begin ::= funct_defs:fd funct_bds:fb              {: System.out.println(fd); System.out.println(fb); :}
+        | funct_defs:fd                           {: System.out.println(fd); :}
+        | funct_bds:fb                            {: System.out.println(fb); :}
+;
+
+funct_defs ::= funct_def:d                         {:   RESULT = d; :}
+        | funct_defs:f funct_def:d           {:  RESULT = f + "\n" +d;:}
+;
+
+funct_bds ::= funct_bd:d                         {:   RESULT = d; :}
+        | funct_bd:f funct_bds:d           {:  RESULT = f + "\n" +d;:}
+;
+
+funct_def ::= ID:i  LPAREN parametr1:p EXTRA funct_bd:bd RBRACKET   {: RESULT = i +"(" + p + ") { \n" + bd + "\n}\n" ;:}
+          | ID:i  LPAREN EXTRA funct_bd:bd RBRACKET   {: RESULT = i +"() { \n" + bd + "\n}\n" ;:}
+;
+
+parametr1 ::=ID:i KOMMA parametr1:p          {:RESULT= i + "," + p;:}
+        |ID:i                                {:RESULT = i;:}
+;
+
+funct_call::=ID:i  LPAREN arg1:a RPAREN      {: RESULT = i + "(" + a + ")"  ;:}
+        | ID:i LPAREN RPAREN                 {: RESULT = i + "()"  ;:}        
+;
+
+arg1::= expr2:e KOMMA arg1:a                 {:RESULT= e + "," + a;:}
+        |expr2:e                             {:RESULT = e ;:}
+;
+
+expr  ::=  expr2:e EQUALITH expr2:e1        {: RESULT= e + " = " + e1  ;:}
+          | expr2:e  SUFFIX  expr2:e1        {: RESULT = " reverse " + e + " prefix reverse " + e1  ;:}
+          | expr2:e  PREFIX  expr2:e1        {: RESULT =  e + " prefix " +  e1 ;:}
+;
+
+expr2  ::=  expr2:e  PLUS  expr2:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr2:e1                 {: RESULT = " reverse "  + e1;  :}
+          | expr_type:c                      {: RESULT = c ;:}
+          | IF_def:i        {: RESULT = i; :}
+;
+
+expr_type::=STRING:s                         {: RESULT = "\"" +  s + "\"" ; :}
+          | CHAR:c                           {: RESULT = c ;:}
+          | ID:c                             {: RESULT = c ;:}
+          | funct_call:f                     {: RESULT = f ; :}  
+;
+
+IF_def ::= IF LPAREN expr:e RPAREN funct_bd:d1 ELSE funct_bd:d2   {: RESULT = "if (" + e + ") \n" + d1 + "\n else \n " + d2 ; :}
+;
+
+funct_bd ::= expr2:e           {: RESULT = e; :}
+;

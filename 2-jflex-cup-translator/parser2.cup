@@ -1,0 +1,169 @@
+/* Simple +/-/* expression language; parser evaluates constant expressions on the fly*/
+/**
+ *  Package and Import Specifications
+ */
+import java_cup.runtime.*;
+
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser2(Scanner s){ this.s=s; }
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+/**
+ *  Symbol Lists
+ */
+
+/* Terminals (tokens returned by the scanner). */
+terminal   RBRACKET, LBRACKET, LPAREN, RPAREN,KOMMA, EQUALITH, PLUS, EXTRA, EXTRA2, NO, NO1;
+terminal  IF, ELSE, SUFFIX, PREFIX, REVERSE;        // our scanner provides numbers as integers
+terminal String STRING, CHAR, ID;
+
+
+/*  Non terminals */
+non terminal begin , funct_bds, funct_defs, expr_type, expr, expr2, expr_d ;
+non terminal funct_call, funct_def, funct_bd;
+non terminal parametr1, arg1; // used to store evaluated subexpressions
+non terminal IF_def, main_m, expr_m,IF_def_m;
+non terminal main_f, expr_f,IF_def_f,expr2b,expr_typeb,arg1b,funct_callb;
+
+
+/**
+ *  Precedence Declarations
+ */
+precedence left  IF, ELSE;
+precedence left EQUALITH, PLUS, KOMMA;
+precedence left SUFFIX, PREFIX;
+
+start with begin;
+
+/**
+ *  The Grammar Rules
+*/
+begin ::= funct_defs:fd funct_bds:fb
+          {: 
+              System.out.println("public class Translated"); 
+              System.out.println("{"); 
+              System.out.println(fd); 
+              System.out.println("  public static void main(String[] args) {");
+              System.out.println(fb);  
+              System.out.print("} \n }"); 
+          :}
+
+        | funct_defs:fd                          {: 
+              System.out.println("public class Translated"); 
+              System.out.println("{"); 
+              System.out.println(fd); 
+              System.out.print("}"); 
+          :}
+        | funct_bds:fb              {: 
+              System.out.println("public class Translated"); 
+              System.out.println("{"); 
+              System.out.println("  public static void main(String[] args) {");
+              System.out.println(fb);  
+              System.out.print("} \n }"); 
+          :}
+
+;
+
+funct_defs ::= funct_def:d                         {:RESULT=  d; :}
+        | funct_defs:f funct_def:d           {:  RESULT = f + "\n" +d;:}
+;
+
+funct_bds ::= main_m:d                         {:   RESULT = d; :}
+        | main_m:f funct_bds:d           {:  RESULT = f + "\n" +d;:}
+;
+
+funct_def ::= ID:i  LPAREN parametr1:p EXTRA main_f:bd RBRACKET   {: RESULT = "public static String " + i +"(" + p + ") "+ "{ \n" + bd + "\n}\n" ;:}
+          | ID:i  LPAREN EXTRA main_f:bd RBRACKET   {: RESULT = "public static String " + i +"() " + "{ \n" + bd + "\n}\n" ;:}
+;
+
+parametr1 ::=ID:i KOMMA parametr1:p          {:RESULT= "String " + i + "," + p;:}
+        |ID:i                                {:RESULT = "String " + i;:}
+;
+
+funct_call::=ID:i  LPAREN arg1:a RPAREN      {: RESULT = i + "(" + a + ")"  ;:}
+        | ID:i LPAREN RPAREN                 {: RESULT = i + "()"  ;:}        
+;
+
+arg1::= expr2:e KOMMA arg1:a                 {:RESULT= e + "," + a;:}
+        |expr2:e                             {:RESULT = e ;:}
+;
+
+expr  ::=  expr2:e EQUALITH expr2:e1        {: RESULT= "(" + e + ").equals( " + e1 +")" ;:}
+          | expr2:e  EXTRA2  expr2:e1        {: RESULT =  "((" + e + ").toString()).startsWith((" +  e1 +").toString())" ;:}
+          | expr2:e  PREFIX  expr2:e1        {: RESULT = "((" + e + ").toString()).startsWith((" +  e1 +").toString())" ;:}
+;
+
+expr2  ::=  expr2:e  PLUS  expr2:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr2:e1                {: RESULT = "new StringBuilder("+ e1 +").reverse()" ;  :}
+          | expr_type:c                      {: RESULT =  c  ;:}
+          | IF_def:i                         {: RESULT = i; :}
+;
+
+expr_type::=STRING:s                         {: RESULT = "\"" +  s + "\"" ; :}
+          | CHAR:c                           {: RESULT = c ;:}
+          | ID:c                             {: RESULT = c ;:}
+          | funct_call:f                     {: RESULT = f ; :}  
+;
+
+IF_def ::= IF LPAREN expr:e RPAREN funct_bd:d1 ELSE funct_bd:d2   {: RESULT = "if (" + e + ") {\n" + d1 + "\n} else {\n" + d2 + "\n}"; :}
+;
+
+funct_bd ::= expr2:e           {: RESULT = e; :}
+;
+
+expr_m  ::= expr_m:e  PLUS  expr_m:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr_m:e1                 {: RESULT = "new StringBuilder(" + e1 + ").reverse()" ;  :}
+          | expr_type:c                      {: RESULT = c ;:}
+;
+
+main_m::= expr_d:e           {: RESULT = "System.out.println(" + e + ");"; :}
+        | IF_def_m:i          {: RESULT = i; :}
+;
+         
+IF_def_m ::= IF LPAREN expr:e RPAREN main_m:d1 ELSE main_m:d2   {: RESULT = "if (" + e + ") {\n" + d1 + "\n} else {\n" + d2 + "\n}"; :}
+;
+
+expr_f ::= expr_f:e  PLUS  expr_f:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr_f:e1               {: RESULT = "new StringBuilder(" + e1 + ").reverse()" ;  :}
+          | expr_typeb:c                      {: RESULT = c ;:}
+;
+
+main_f::= expr_f:e           {: RESULT = "return " + e + ";"; :}
+        | IF_def_f:i          {: RESULT = i; :}
+;
+         
+IF_def_f ::= IF LPAREN expr:e RPAREN main_f:d1 ELSE main_f:d2   {: RESULT = "if (" + e + ") {\n" + d1 + "\n} else {\n" + d2 + "\n}"; :}
+;
+
+expr_d  ::= expr_d:e  PLUS  expr_d:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr_d:e1                 {: RESULT = "(new StringBuilder(" + e1 + ").reverse())" ;  :}
+          | expr_typeb:c                      {: RESULT = c ;:}
+;
+
+funct_callb::=ID:i  LPAREN arg1b:a RPAREN      {: RESULT = i + "(" + a + ")"  ;:}
+        | ID:i LPAREN RPAREN                 {: RESULT = i + "()"  ;:}        
+;
+
+arg1b::= expr2b:e KOMMA arg1b:a                 {:RESULT= e + "," + a;:}
+        |expr2b:e                             {:RESULT = e ;:}
+;
+
+expr2b  ::=  expr2b:e  PLUS  expr2b:e1          {: RESULT = e + "+" + e1;  :}
+          | REVERSE expr2b:e1                {: RESULT = "new StringBuilder("+ e1 +").reverse()" ;  :}
+          | expr_typeb:c                      {: RESULT =   c   ;:}
+          | IF_def:i                         {: RESULT = i; :}
+;
+
+expr_typeb::=STRING:s                         {: RESULT = "\"" +  s + "\"" ; :}
+          | CHAR:c                           {: RESULT = c ;:}
+          | ID:c                             {: RESULT = c ;:}
+          | funct_callb:f                     {: RESULT = f ; :}  
+;
